@@ -1,45 +1,118 @@
-# OAuth Flows for AI Identities
+# OAuth 2.0 Flows for AI Clients
 
-AI clients are non-interactive. Use OAuth 2.0 flows that do not require a browser or human consent screens.
+This document describes the OAuth 2.0 flows implemented for non-interactive AI clients.
 
-## Supported Flows
+## Endpoints
 
-### Client Credentials (RFC 6749)
-- Best for service-to-service or headless agents.
-- Issues access tokens bound to the client, optionally scoped to a specific AI identity.
-- Token lifetime short; refresh via re-auth.
+- POST /api/oauth/token
+  - Supports grant_type: client_credentials, jwt_bearer
+- POST /api/oauth/introspect
+  - Returns token activity and claims
+- POST /api/oauth/revoke
+  - Revokes tokens (RFC 7009 semantics)
 
-Example (token request):
-```bash
-curl -X POST https://your-host/oauth/token \
-  -d 'grant_type=client_credentials' \
-  -d 'client_id=CLIENT_ID' \
-  -d 'client_secret=CLIENT_SECRET' \
-  -d 'scope=context:read memory:write'
-```
+All endpoints are rate limited via the `api` limiter.
 
-### JWT Bearer Token Grant (RFC 7523)
-- The client signs a JWT with its private key and exchanges it for an access token.
-- Stronger trust with key-based auth; enables mTLS or key rotation patterns.
+## Client Credentials Grant
 
-Example (conceptual):
-```bash
-curl -X POST https://your-host/oauth/token \
-  -d 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer' \
-  -d 'assertion=SIGNED_JWT' \
-  -d 'scope=context:read memory:write'
-```
+Request:
 
-## Token Types
-- Access Token (JWT or opaque): short-lived; carries scopes.
-- Refresh Token (optional): for longer-lived sessions; limit usage for AI.
-- Introspection endpoint validates tokens; revocation supported.
+POST /api/oauth/token
+{
+  "grant_type": "client_credentials",
+  "client_id": "<client-id>",
+  "client_secret": "<client-secret>",
+  "scope": "ai:context:read ai:context:write"
+}
 
-## Scopes
-- See [Scopes & Policies](./scopes-policies.md). Request only what is needed.
+Response:
+{
+  "access_token": "<jwt>",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "ai:context:read ai:context:write"
+}
 
-## Recommendations
-- Prefer Client Credentials for simplicity and reliability.
-- Consider JWT bearer for stronger key management and auditing.
-- Keep access tokens short-lived (5–30 minutes). Re-issue as needed.
-- Use mTLS or IP allowlists for high-sensitivity workloads.
+- Scopes are enforced against OAuthClient.allowed_scopes
+- Token TTL defaults to 1 hour
+
+## JWT Bearer Grant (Assertion)
+
+Request:
+
+POST /api/oauth/token
+{
+  "grant_type": "jwt_bearer",
+  "assertion": "<signed-jwt>",
+  "scope": "ai:context:read"
+}
+
+- The assertion must be an HS256-signed JWT using the server signing key derived from APP_KEY.
+- The `iss` or `sub` claim must match an existing OAuth client id.
+- Optional `scope` may also be provided inside the assertion payload.
+
+Response (same as client credentials):
+{
+  "access_token": "<jwt>",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "ai:context:read"
+}
+
+## Token Introspection
+
+Request:
+
+POST /api/oauth/introspect
+{
+  "token": "<jwt>"
+}
+
+Response:
+{
+  "active": true|false,
+  "scope": "...",
+  "client_id": "...",
+  "sub": "...",
+  "exp": 1730000000,
+  "iat": 1729996400,
+  "iss": "...",
+  "aud": "artax-id"
+}
+
+- `active` is true only if the token signature matches, the token has not been revoked, and `exp` > now.
+
+## Token Revocation
+
+Request:
+
+POST /api/oauth/revoke
+{
+  "token": "<jwt>"
+}
+
+Response:
+{
+  "revoked": true
+}
+
+- If the token is unknown, the endpoint returns `{ "revoked": false }` to avoid disclosing unknown tokens.
+- Once revoked, introspection will return `active: false`.
+
+## Error Codes
+
+- invalid_client (401): client authentication failed
+- invalid_scope (400): requested scope is not allowed for the client
+- invalid_request (400): missing required fields
+- invalid_grant (400): invalid assertion for jwt_bearer
+
+## Signing Key
+
+Tokens are signed using HS256 with a key derived from `config('app.key')`.
+- If APP_KEY starts with `base64:`, the decoded value is used.
+- Otherwise the plain APP_KEY value is used.
+
+## Notes
+
+- The implementation keeps tokens in `oauth_tokens` with `revoked` and `expires_at` tracked.
+- Adjust the API rate limiter settings in `AppServiceProvider` as needed for production.
