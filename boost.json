@@ -1,0 +1,10 @@
+{
+    "agents": [
+        "claude_code", "trae"
+    ],
+    "editors": [
+        "vscode", "trae"
+    ],
+    "guidelines": ["AGENTS.md"],
+    "herd_mcp": true
+}

@@ -48,30 +48,25 @@ cp .env.example .env
 # Update .env with database & environment configs
 
 composer install
-php artisan key:generate
-php artisan passport:install
+herd php artisan key:generate
+herd php artisan passport:install
 
 bun install
 
-php artisan migrate
-php artisan db:seed # Optional: preload agent identities
+herd php artisan migrate
+herd php artisan db:seed # Optional: preload agent identities
 ```
 
 ### Run the Application
 
-```bash
-# Backend
-php artisan serve
-```
-
-Access the OAuth server at: `http://localhost:8000`
+Access the OAuth server at: `https://artax-id.test` (Already setup by Laravel Herd automatically no need to serve)
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-php artisan test
+herd php artisan test
 bun run test
 ```
 

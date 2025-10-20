@@ -1,0 +1,22 @@
+{
+    "servers": {
+        "laravel-boost": {
+            "command": "herd",
+            "args": [
+                "php",
+                "artisan",
+                "boost:mcp"
+            ]
+        },
+        "herd": {
+            "command": "herd",
+            "args": [
+                "php",
+                "/Applications/Herd.app/Contents/Resources/herd-mcp.phar"
+            ],
+            "env": {
+                "SITE_PATH": "/Users/prime-vortex/Projects/artax/artax-id"
+            }
+        }
+    }
+}
